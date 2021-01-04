@@ -110,7 +110,7 @@ coverageStats <- function(
     
     #TODO: Pass all internal parameters to parallel function, now reading
     #      from upper level which is not very safe.
-    results <- cmclapply(basename(bams),function(b) {
+    results <- cmclapply(bams,function(b) {
         message("Sample ",b)
         message("  reading BAM file")
         if (is.null(targets))
