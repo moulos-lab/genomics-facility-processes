@@ -220,7 +220,7 @@ coverageStats <- function(
         # Attach coordinates etc
         avgStatsTargets <- 
             cbind(results[[1]]$targets[,c(1,2,3)],avgStatsTargets)
-        if (!is.null(ctrls)) {
+        if (!is.null(ctrls))
             avgStatsControls <- 
                 cbind(results[[1]]$controls[,c(1,2,3)],avgStatsControls)
     }
