@@ -73,6 +73,13 @@ coverageStats <- function(
             bed <- GRanges(preBed)
             names(bed) <- bed$name
         }
+        # It may happen!!!
+        dd <- which(duplicated(bed))
+        if (length(dd) > 0) {
+            preBed <- preBed[-dd,,drop=FALSE]
+            bed <- bed[-dd]
+        }
+        rownames(preBed) <- names(bed)
     }
     
     # Read controls - a simple 1-column text file without header!
@@ -127,17 +134,22 @@ coverageStats <- function(
         # TODO: Pass the other supported parameters to readBamAlignments
         
         # Coverage operations
-        message("  calculating coverage stats")
+        message("  calculating coverage")
         co <- calcCoverage(reads,bed,rc=rc)
         
+        # Sanity... may happen for kits with non-anchored regions
+        if (length(co) < length(bed))
+            att <- att[names(co),]
+        
+        message("  assembling stats")
         # Min coverage
-        minCo <- vapply(co,min,numeric(1))
+        minCo <- vapply(co,min,numeric(1),na.rm=TRUE)
         # Max coverage
-        maxCo <- vapply(co,max,numeric(1))
+        maxCo <- vapply(co,max,numeric(1),na.rm=TRUE)
         # Mean coverage
-        meanCo <- vapply(co,mean,numeric(1))
+        meanCo <- vapply(co,mean,numeric(1),na.rm=TRUE)
         # Median coverage
-        medianCo <- vapply(co,median,numeric(1))
+        medianCo <- vapply(co,median,numeric(1),na.rm=TRUE)
         # First base coverage
         firstCo <- vapply(co,function(x) {
             return(as.numeric(x[1]))
@@ -309,7 +321,6 @@ coverageStats <- function(
         if (avgSample) {
             out <- file.path(dirname(bams[1]),paste("average_covstats_summary_",
                 format(Sys.time(),"%Y-%m-%d-%H-%M-%S"),".xlsx",sep=""))
-            out <- file.path(dirname(b),out)
             if (!is.null(ctrls))
                 xlsx <- list(
                     targets=avgStatsTargets,
