@@ -1,4 +1,4 @@
-getBamStats <- function(targets,mq=20,ref=NULL,splicing=NULL,
+getBamStats <- function(targets,mq=20,ref=NULL,splicing=NULL,reportRL=FALSE,
     outFormat=c("txt","xlsx"),outDir=getwd(),outBase=NULL,rc=NULL,
     .verbose=ifelse(is.null(rc),TRUE,FALSE)) {
     if (!requireNamespace("Rsamtools"))
@@ -127,7 +127,7 @@ getBamStats <- function(targets,mq=20,ref=NULL,splicing=NULL,
             splicing,.verbose,rc=rc)
     else
         statsList <- cmclapply(bams,getSingleBamStats,refRegions,mq,
-            splicing,.verbose,rc=rc)
+            splicing,reportRL,.verbose,rc=rc)
     
     # Collect results
     readsList <- lapply(statsList,function(x) {
@@ -167,7 +167,7 @@ getBamStats <- function(targets,mq=20,ref=NULL,splicing=NULL,
 }
 
 getSingleBamStats <- function(bam,targets=NULL,mq=20,splicing=FALSE,
-    .verbose=TRUE) {
+    reportRL=FALSE,.verbose=TRUE) {
     message("Getting alignment statistics for file ",bam)
     
     # Total reads and bases
@@ -255,6 +255,13 @@ getSingleBamStats <- function(bam,targets=NULL,mq=20,splicing=FALSE,
             paste0(onTargetUniqBases," (",onTargetUniqBasesPct,")")
     }
     
+    # Average read length
+    avgrl <- 0
+    if (reportRL) {
+        if (.verbose) message("  average read length")
+        avgrl <- .getAvgReadLength(bam)
+    }
+    
     return(list(
         reads=list(
             total_reads=totalReads,
@@ -268,7 +275,8 @@ getSingleBamStats <- function(bam,targets=NULL,mq=20,splicing=FALSE,
             aligned_bases=alignedBases,
             uniquely_aligned_bases=uniqAlignedBases,
             on_target_bases=onTargetBases,
-            on_target_uniquely_aligned_bases=onTargetUniqBases
+            on_target_uniquely_aligned_bases=onTargetUniqBases,
+            average_read_length=avgrl
         ),
         pct=list(
             total_reads=totalReadsPct,
@@ -421,7 +429,7 @@ getPairedBamStats <- function(bam,targets=NULL,mq=20,splicing=FALSE,
     if (.verbose) message("  chimeric reads")
     chimericReads <- .getChimericReads(bam)
     chimericReadsPct <- paste0(round(100*chimericReads/totalReads,2),"%")
-    chimericReadsHyb <- paste0(round(100*chimericReads/totalReads,2),"%")
+    chimericReadsHyb <- paste0(chimericReads," (",chimericReadsPct,")")
     
     # Uniquely aligned chimeric reads
     if (.verbose) message("  uniquely aligned chimeric reads")
@@ -544,6 +552,29 @@ getPairedBamStats <- function(bam,targets=NULL,mq=20,splicing=FALSE,
             on_target_uniquely_aligned_bases=onTargetUniqBasesHyb
         )
     ))
+}
+
+.getAvgReadLength <- function(bam) {
+    if (is.character(bam))
+        return(.getAvgReadLengthFile(bam))
+    else if (is.list(bam))
+        return(.getAvgReadLengthObj(bam))
+}
+
+.getAvgReadLengthFile <- function(bam) {
+    params <- ScanBamParam(
+        flag=scanBamFlag(
+            isSecondaryAlignment=FALSE,
+            isSupplementaryAlignment=FALSE
+        ),
+        what=c("qwidth","seq")
+    )
+    bamObj <- scanBam(bam,param=params)
+    return(floor(mean(width(bamObj[[1]]$seq))))
+}
+
+.getAvgReadLengthObj <- function(obj) {
+    return(floor(mean(width(bamObj[[1]]$seq))))
 }
 
 .getTotalReads <- function(bam) {

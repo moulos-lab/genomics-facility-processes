@@ -11,6 +11,9 @@
 # This script should could be used along with HybridStat's exon coverage script
 # for targetted sequencing and bamstats.
 #
+
+#source("bamstats.R")
+
 coverageStats <- function(
     bams,
     targets=NULL,
@@ -193,8 +196,8 @@ coverageStats <- function(
         # Create total stats
         totalD <- data.frame(
             name="total_average_targets",
-            average_min_coverage=mean(min(Dd$min_coverage)),
-            average_max_coverage=mean(max(Dd$max_coverage)),
+            average_min_coverage=mean(Dd$min_coverage),
+            average_max_coverage=mean(Dd$max_coverage),
             average_mean_coverage=mean(Dd$mean_coverage),
             average_median_coverage=mean(Dd$median_coverage),
             average_first_base_coverage=mean(Dd$first_base_coverage),
@@ -203,8 +206,8 @@ coverageStats <- function(
         if (!is.null(Dc))
             totalC <- data.frame(
                 name="total_average_controls",
-                average_min_coverage=mean(min(Dc$min_coverage)),
-                average_max_coverage=mean(max(Dc$max_coverage)),
+                average_min_coverage=mean(Dc$min_coverage),
+                average_max_coverage=mean(Dc$max_coverage),
                 average_mean_coverage=mean(Dc$mean_coverage),
                 average_median_coverage=mean(Dc$median_coverage),
                 average_first_base_coverage=mean(Dc$first_base_coverage),
@@ -212,9 +215,25 @@ coverageStats <- function(
             )
         else
             totalC <- NULL
+        
         Dt <- rbind(totalD,totalC)
+        
+        # Calculate the 3 lines of read stats
+        if (!is.null(pairedOpts$isPaired) && pairedOpts$isPaired)
+            rStats <- getPairedBamStats(bam=b,targets=bed,mq=20,.verbose=FALSE)
+        else
+            rStats <- getSingleBamStats(bam=b,targets=bed,mq=20,reportRL=TRUE,
+                .verbose=FALSE)
+        
+        # We get rStats$reads, rStats$pct, rStats$hybrid and attache to output
+        if (!is.null(rStats$reads$average_read_length))
+            rStats$pct$average_read_length <- 
+                rStats$hyb$average_read_length <- "-"
+        Dr <- do.call("rbind",rStats)
+        # Obviously no splicing
+        Dr <- Dr[,!grepl("splic",colnames(Dr)),drop=FALSE]
 
-        return(list(targets=Dd,controls=Dc,totals=Dt))
+        return(list(targets=Dd,controls=Dc,totals=Dt,reads=Dr))
     },rc=rc)
     #names(results) <- gsub(".bam","",basename(bams),ignore.case=TRUE)
     names(results) <- basename(bams)
@@ -248,6 +267,7 @@ coverageStats <- function(
                 if (!is.null(ctrls))
                     outControls <- paste(parts,"_covstats_CONTROLS.txt",sep="")
                 outTotals <- paste(parts,"_covstats_TOTALS.txt",sep="")
+                outReads <- paste(parts,"_covstats_READS.txt",sep="")
             }
             else {
                 outTargets <- paste(paste(parts[1:(length(parts)-1)],
@@ -257,6 +277,8 @@ coverageStats <- function(
                         collapse="."),"_covstats_CONTROLS.txt",sep="")
                 outTotals <- paste(paste(parts[1:(length(parts)-1)],
                     collapse="."),"_covstats_TOTALS.txt",sep="")
+                outReads <- paste(paste(parts[1:(length(parts)-1)],
+                    collapse="."),"_covstats_READS.txt",sep="")
             }
             
             write.table(results[[base]]$targets,
@@ -269,9 +291,12 @@ coverageStats <- function(
             write.table(results[[base]]$totals,
                 file=file.path(dirname(b),outTotals),sep="\t",quote=FALSE,
                 row.names=FALSE)
+            write.table(results[[base]]$reads,
+                file=file.path(dirname(b),outReads),sep="\t",quote=FALSE,
+                row.names=FALSE)
         }
         
-        if (avgSample) {
+        if (avgSamples) {
             outTargets <- file.path(dirname(bams[1]),
                 paste("average_covstats_summary_",
                 format(Sys.time(),"%Y-%m-%d-%H-%M-%S"),"_TARGETS.txt",sep=""))
@@ -308,17 +333,19 @@ coverageStats <- function(
                 xlsx <- list(
                     targets=results[[base]]$targets,
                     controls=results[[base]]$controls,
-                    totals=results[[base]]$totals
+                    totals=results[[base]]$totals,
+                    reads=results[[base]]$reads
                 )
             else
                 xlsx <- list(
                     targets=results[[base]]$targets,
-                    totals=results[[base]]$totals
+                    totals=results[[base]]$totals,
+                    reads=results[[base]]$reads
                 )
             write.xlsx(xlsx,file=out,keepNA=TRUE)
         }
         
-        if (avgSample) {
+        if (avgSamples) {
             out <- file.path(dirname(bams[1]),paste("average_covstats_summary_",
                 format(Sys.time(),"%Y-%m-%d-%H-%M-%S"),".xlsx",sep=""))
             if (!is.null(ctrls))
