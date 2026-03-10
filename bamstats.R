@@ -112,8 +112,14 @@ getBamStats <- function(targets,mq=20,ref=NULL,splicing=NULL,reportRL=FALSE,
         if (is.character(ref) && file.exists(ref)) {
             tmp <- read.delim(ref,header=FALSE)
             # FIXME: Name according to bed columns
-            names(tmp) <- c("chromosome","start","end","name","score","strand",
-                "x","y")
+            if (ncol(tmp) == 3)
+                names(tmp) <- c("chromosome","start","end")
+            else if (ncol(tmp) == 6)
+                names(tmp) <- c("chromosome","start","end","name","score",
+                    "strand")
+            else if (ncol(tmp) == 8)
+                names(tmp) <- c("chromosome","start","end","name","score",
+                    "strand","x","y")
             refRegions <- tryCatch(GRanges(tmp),error=function(e) {
                 message("Caught error ",e)
                 stop(ref," does not seem to be a valid BED file!")
