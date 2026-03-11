@@ -24,6 +24,7 @@ coverageStats <- function(
     outFormat=c("xlsx","txt"),
     avgSamples=FALSE,
     restricBamToTargets=FALSE,
+    readStats=TRUE,
     rc=NULL
 ) {
     if (missing(bams))
@@ -218,21 +219,26 @@ coverageStats <- function(
         
         Dt <- rbind(totalD,totalC)
         
-        # Calculate the 3 lines of read stats
-        if (!is.null(pairedOpts$isPaired) && pairedOpts$isPaired)
-            rStats <- getPairedBamStats(bam=b,targets=bed,mq=20,.verbose=FALSE)
+        if (readStats) {
+            # Calculate the 3 lines of read stats
+            if (!is.null(pairedOpts$isPaired) && pairedOpts$isPaired)
+                rStats <- getPairedBamStats(bam=b,targets=bed,mq=20,
+                    .verbose=FALSE)
+            else
+                rStats <- getSingleBamStats(bam=b,targets=bed,mq=20,
+                    reportRL=TRUE,.verbose=FALSE)
+            
+            # We get rStats$reads, rStats$pct, rStats$hybrid and attache to output
+            if (!is.null(rStats$reads$average_read_length))
+                rStats$pct$average_read_length <- 
+                    rStats$hyb$average_read_length <- "-"
+            Dr <- do.call("rbind",rStats)
+            # Obviously no splicing
+            Dr <- Dr[,!grepl("splic",colnames(Dr)),drop=FALSE]
+        }
         else
-            rStats <- getSingleBamStats(bam=b,targets=bed,mq=20,reportRL=TRUE,
-                .verbose=FALSE)
+            Dr <- NULL
         
-        # We get rStats$reads, rStats$pct, rStats$hybrid and attache to output
-        if (!is.null(rStats$reads$average_read_length))
-            rStats$pct$average_read_length <- 
-                rStats$hyb$average_read_length <- "-"
-        Dr <- do.call("rbind",rStats)
-        # Obviously no splicing
-        Dr <- Dr[,!grepl("splic",colnames(Dr)),drop=FALSE]
-
         return(list(targets=Dd,controls=Dc,totals=Dt,reads=Dr))
     },rc=rc)
     #names(results) <- gsub(".bam","",basename(bams),ignore.case=TRUE)
@@ -291,9 +297,11 @@ coverageStats <- function(
             write.table(results[[base]]$totals,
                 file=file.path(dirname(b),outTotals),sep="\t",quote=FALSE,
                 row.names=FALSE)
-            write.table(results[[base]]$reads,
-                file=file.path(dirname(b),outReads),sep="\t",quote=FALSE,
-                row.names=FALSE)
+            if (readStats) {
+                write.table(results[[base]]$reads,
+                    file=file.path(dirname(b),outReads),sep="\t",quote=FALSE,
+                    row.names=FALSE)
+            }
         }
         
         if (avgSamples) {
